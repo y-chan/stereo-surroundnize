@@ -1,0 +1,27 @@
+[project]
+name = "stereo-surroundnize"
+version = "0.1.0"
+description = "Streaming stereo to 5.1 upmix using NumPy and SciPy"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
+dependencies = ["numpy>=1.24", "scipy>=1.10"]
+
+[project.optional-dependencies]
+files = ["soundfile>=0.12"]
+demo = ["PySide6-Essentials>=6.6", "pyqtgraph>=0.13.7", "sounddevice>=0.5", "soundfile>=0.12"]
+
+[project.scripts]
+stereo-surround-demo = "stereo_surround.demo.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["stereo_surround"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/stereo_surround", "/tests", "/examples", "/README.md", "/LICENSE", "/THIRD_PARTY_NOTICES.md", "/pyproject.toml", "/uv.lock"]
+exclude = ["*.wav", "*.flac", "*.pdf", "/docs", "/results.json", "__pycache__", "*.pyc"]

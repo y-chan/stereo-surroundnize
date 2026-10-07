@@ -1,0 +1,25 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+.venv-*/
+
+# Local media and reference documents are not redistributable project assets.
+*.wav
+*.flac
+*.pdf
+td_packages/
+.local-only/
+
+# Locally generated benchmark results
+*benchmark-results.json
+/results.json
+
+# Local research, design, validation, and licensing notes
+/docs/
