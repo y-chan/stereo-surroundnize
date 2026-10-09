@@ -53,10 +53,25 @@ pipの場合は`python -m pip install -e ".[demo]"`で追加依存を入れ、`p
 音源の選択、再生、一時停止、シーク、6chそれぞれの波形とスペクトログラムの同時表示に対応しています。
 出力先と6ch／8chの割り当てを選び、各チャンネルのテストボタンで実スピーカーとの対応を確認できます。
 出力デバイスと接続先は、6chまたは8chのPCMに対応している必要があります。
-Windowsでは対象デバイスのスピーカー構成を5.1または7.1に設定します。
+Windowsでは、下記の[スピーカー構成の設定](#windowsのスピーカー構成)で対象デバイスを5.1または7.1に設定します。
 標準の割り当ては6chがFL・FR・FC・LFE・SL・SR、8chがFL・FR・FC・LFE・無音・無音・SL・SRです。
 6ch入力もFL・FR・FC・LFE・SL・SRの列順として読みます。
 起動時には自動再生しません。
+
+## Windowsのスピーカー構成
+
+再生デモとTouchDesignerを使う前に、Windows側でも出力先のスピーカー構成を確認します。
+チャンネル数は、従来のサウンド画面の「構成」から選びます。
+
+1. `Win + R`を押し、`mmsys.cpl`を実行する。
+2. 「再生」タブで、使用するAVアンプやオーディオデバイスの出力を選ぶ。
+3. 左下の「構成」を開く。
+4. ステレオ（2ch）、5.1サラウンド（6ch）、7.1サラウンド（8ch）から、使用する構成を選ぶ。
+5. テスト音で各スピーカーの対応を確認し、ウィザードを完了する。
+
+「設定 → システム → サウンド」の出力形式とは別の設定です。
+「構成」が無効、または必要な構成が表示されない場合は、対象デバイスと接続先、ドライバのマルチチャンネルPCM対応を確認します。
+スピーカー構成はWindowsのサウンドコントロールパネルで設定されます。[Microsoftの説明](https://learn.microsoft.com/en-us/windows/win32/coreaudio/pkey-audioendpoint-fullrangespeakers)
 
 ## 連続した音声ブロックの処理
 
@@ -113,6 +128,7 @@ print(stereo_surround.__file__)
 Setup Parametersを押してReset操作を追加し、設定を変えたときはResetを押します。
 出力順はFL、FR、FC、LFE、SL、SRです。
 Audio Device Out CHOP側でも6chの割り当てを確認します。
+Windows側の[スピーカー構成](#windowsのスピーカー構成)と、Audio Device Outの出力先が同じデバイスになっていることも確認します。
 DirectSoundの場合はStereo Modeを無効にし、Front Left、Front Right、Front Center、Low Frequencyと、デバイスが対応するリア左右の計6出力を有効にします。
 入力チャンネルは、有効にしたスピーカー出力の順に割り当てられます。
 ActiveとCook Every Frameを有効にし、Volumeが0でないことも確認します。[Audio Device Out公式設定](https://derivative.ca/UserGuide/Audio_Device_Out_CHOP)
