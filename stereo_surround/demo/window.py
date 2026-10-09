@@ -49,7 +49,7 @@ class DemoWindow(QtWidgets.QMainWindow):
         title = QtWidgets.QLabel("Stereo → Surround")
         title.setStyleSheet("font-size: 24px; font-weight: 600; padding: 6px;")
         layout.addWidget(title)
-        layout.addWidget(QtWidgets.QLabel("2chはリアルタイム変換 / 6chはそのまま再生。波形とスペクトログラムは音量とミュート適用後の信号です。"))
+        layout.addWidget(QtWidgets.QLabel("波形・スペクトルはデコード後の6chを表示。2ch出力では再生時に左右へミックスします。"))
 
         file_row = QtWidgets.QHBoxLayout()
         self.path_edit = QtWidgets.QLineEdit()
@@ -70,7 +70,7 @@ class DemoWindow(QtWidgets.QMainWindow):
         refresh = QtWidgets.QPushButton("デバイス再取得")
         refresh.clicked.connect(self.refresh_devices)
         self.channels_combo = QtWidgets.QComboBox()
-        self.channels_combo.addItems(["6ch", "8ch"])
+        self.channels_combo.addItems(["2ch", "6ch", "8ch"])
         self.channels_combo.setCurrentIndex(1)
         self.exclusive = QtWidgets.QCheckBox("WASAPI排他")
         device_row.addWidget(QtWidgets.QLabel("出力先"))
@@ -87,7 +87,7 @@ class DemoWindow(QtWidgets.QMainWindow):
         self.device_hint.setWordWrap(True)
         layout.addWidget(self.device_hint)
 
-        routing = QtWidgets.QGroupBox("スピーカー割り当て（デバイスの出力番号は1から）")
+        routing = QtWidgets.QGroupBox("スピーカー割り当て（2ch出力では左右にミックス）")
         grid = QtWidgets.QGridLayout(routing)
         self.map_spins, self.test_buttons, self.mutes = [], [], []
         for i, name in enumerate(CHANNELS):
@@ -265,18 +265,19 @@ class DemoWindow(QtWidgets.QMainWindow):
     def device_changed(self):
         d = self.device_combo.currentData()
         if d:
-            self.channels_combo.setCurrentIndex(1 if d["channels"] >= 8 else 0)
+            self.channels_combo.setCurrentIndex(2 if d["channels"] >= 8 else 1 if d["channels"] >= 6 else 0)
             self.reset_mapping()
             self.exclusive.setChecked(False)
             self.exclusive.setEnabled("WASAPI" in d["api"])
             if d["channels"] < 6:
-                self.device_hint.setText(f"選択した出力は{d['channels']}chと報告されており、6ch再生に対応しません。多チャンネル出力を選ぶか、Windowsのスピーカー構成を5.1/7.1に設定してデバイスを再取得してください。")
+                self.device_hint.setText(f"選択した出力は{d['channels']}chです。2chモードで左右にミックスして再生します。センターとLFEは左右へ、サラウンドは対応する左右へ振り分けます。")
             else:
                 self.device_hint.setText("8chの標準割当はSL/SRが7/8番です。6chでは5/6番になります。テスト音で実スピーカーとの対応を確認できます。")
 
     def reset_mapping(self):
-        count = 8 if self.channels_combo.currentIndex() else 6
+        count = (2, 6, 8)[self.channels_combo.currentIndex()]
         for spin, slot in zip(self.map_spins, default_mapping(count)):
+            spin.setEnabled(count != 2)
             spin.setMaximum(count)
             spin.setValue(slot+1)
 
@@ -313,7 +314,7 @@ class DemoWindow(QtWidgets.QMainWindow):
         d = self.device_combo.currentData()
         if d is None:
             raise ValueError("出力デバイスを選択してください")
-        channels = 8 if self.channels_combo.currentIndex() else 6
+        channels = (2, 6, 8)[self.channels_combo.currentIndex()]
         self.engine = self.engine_factory(info, d["id"], output_channels=channels,
                                           mapping=tuple(s.value()-1 for s in self.map_spins),
                                           settings=self.decoder_settings(), start_frame=start_frame,
@@ -385,6 +386,9 @@ class DemoWindow(QtWidgets.QMainWindow):
     def _set_running(self, running):
         for widget in self._locked_widgets:
             widget.setEnabled(not running)
+        if not running and self.channels_combo.currentIndex() == 0:
+            for spin in self.map_spins:
+                spin.setEnabled(False)
         d = self.device_combo.currentData()
         self.exclusive.setEnabled(not running and bool(d and "WASAPI" in d["api"]))
         self.settings_box.setEnabled(not running and bool(self.source and self.source.channels == 2))

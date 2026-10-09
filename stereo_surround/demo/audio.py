@@ -93,6 +93,8 @@ def test_tone(channel, rate=48000, duration=1.0, block_size=1024):
 
 
 def default_mapping(channels):
+    if channels == 2:
+        return (0, 1, 0, 1, 0, 1)
     if channels == 8:
         # Windows order: FL FR FC LFE BL BR SL SR. Leave BL/BR silent.
         return (0, 1, 2, 3, 6, 7)
@@ -102,6 +104,10 @@ def default_mapping(channels):
 
 
 def validate_mapping(mapping, channels):
+    if channels == 2:
+        if len(mapping) != 6 or any(not isinstance(v, (int, np.integer)) or not 0 <= v < 2 for v in mapping):
+            raise ValueError("Stereo output requires six logical speaker routes")
+        return tuple(int(v) for v in mapping)
     if channels not in (6, 8) or len(mapping) != 6:
         raise ValueError("Six logical speakers require a 6ch or 8ch output")
     if any(not isinstance(v, (int, np.integer)) or not 0 <= v < channels for v in mapping):
@@ -136,12 +142,14 @@ class AudioFIFO:
         self.starved_frames = 0
         self.clipped_samples = 0
         self.eof = False
+        self.visual_output = np.empty((0, 6), np.float32)
 
     def render(self, output, gain=1.0, muted=(False,)*6):
         """Fill every output sample, including unused slots and underruns."""
         # PortAudioのoutputは未初期化の可能性がある。
         # 未使用の8chスロット、ミュート、EOF後の余り、キュー不足を先に無音にする。
         output.fill(0)
+        self.visual_output = np.zeros((len(output), 6), np.float32)
         position = 0
         while position < len(output) and not self.eof:
             if self.current is None:
@@ -159,12 +167,19 @@ class AudioFIFO:
                     self.eof = True
                     break
             take = min(len(output)-position, len(self.current)-self.offset)
-            # outputはデバイス順、currentは常にFL/FR/FC/LFE/SL/SR順。
-            # mappingは一対一なので加算ではなく代入し、ミュートは初期ゼロを残す。
-            for channel, slot in enumerate(self.mapping):
+            source = self.current[self.offset:self.offset+take]
+            target = output[position:position+take]
+            visual = self.visual_output[position:position+take]
+            for channel in range(6):
                 if not muted[channel]:
-                    np.multiply(self.current[self.offset:self.offset+take, channel], gain,
-                                out=output[position:position+take, slot])
+                    np.multiply(source[:, channel], gain, out=visual[:, channel])
+            if self.channels == 2:
+                # Center and LFE go to both sides; surrounds go to their matching side.
+                target[:, 0] = visual[:, 0] + visual[:, 2] * .7071 + visual[:, 3] + visual[:, 4] * .7071
+                target[:, 1] = visual[:, 1] + visual[:, 2] * .7071 + visual[:, 3] + visual[:, 5] * .7071
+            else:
+                for channel, slot in enumerate(self.mapping):
+                    target[:, slot] = visual[:, channel]
             self.offset += take
             position += take
             self.played_frames += take
@@ -252,11 +267,9 @@ class PlaybackEngine:
             if not self.paused:
                 finished = self.fifo.render(output, self.gain, self.muted)
             # pause中はゼロを送り続け、FIFOを消費しないので音源位置は保持される。
-            # 描画はデバイスへ渡すPCMを使い、音量・ミュート・clip後を表示する。
-            # tupleによる列のadvanced indexingはコピーを作るので、PortAudioが
-            # 次callbackでoutputを再利用しても、GUIのパケットは書き換わらない。
-            # https://numpy.org/doc/stable/user/basics.indexing.html#advanced-indexing
-            packet = (self.visual_frames, output[:, self.fifo.mapping])
+            # 描画用配列はrenderごとに作り、出力チャンネル数から独立させる。
+            visual = self.fifo.visual_output if not self.paused else np.zeros((frames, 6), np.float32)
+            packet = (self.visual_frames, visual)
             # この番号はデバイスへ送ったフレームの連番で、pause中も増やす。
             # 音源位置とは別で、描画パケットの欠落と時間の連続性を検出するために使う。
             self.visual_frames += frames
